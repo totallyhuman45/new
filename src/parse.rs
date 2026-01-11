@@ -51,8 +51,31 @@ pub fn parse_VecLit(exprStr:&str,Line:i32) -> Expr {
     }
     return Expr::VecLit(result)
 }
+pub fn parse_FuncLit(exprStr:&str,Line:i32) -> Expr {
+    let mut name: String = "".to_string();
+    let mut breakIdx: i32 =0;
 
+    for (i,x) in exprStr.chars().collect::<Vec<char>>().iter().enumerate(){
+        if *x != '(' && *x != ' '{
+            name.push(*x);
+        }else if *x == '('{
+            breakIdx = i as i32 + 1;
+            break;
+        }
+    }
 
+    let binding = exprStr.chars().take(breakIdx as usize).collect::<String>();
+    let mut removed = exprStr.strip_prefix(&binding).unwrap_or_else(|| {panic!("Failed to parse string: {:?} on line {:?}", exprStr, Line)}).trim();
+    removed = removed.strip_suffix(")").unwrap_or_else(|| {panic!("Failed to parse string: {:?} on line {:?}", removed, Line)});
+    if removed.trim() == ""{
+        return Expr::Call{name: name, args: Vec::new()};
+    }
+    let mut result :Vec<Box<Expr>> = vec![];
+    for x in removed.split(','){
+        result.push(Box::new(parse_expr(x,Line)));
+    }
+    return Expr::Call{name: name, args: result};
+}
 
 pub fn parse_OppLit(exprStr:&str,Line:i32) -> Expr{
     let mut tokens: Vec<char>= vec![];
@@ -105,7 +128,7 @@ pub fn parse_OppLit(exprStr:&str,Line:i32) -> Expr{
             let idx = nonTokensInd[i] + t;
 
             if idx >= chars.len()
-                || (chars[idx] != '"' && chars[idx] != '(')
+                || (chars[idx] != '"' )
             {
 
                 j.push((nonTokensInd[i],name));
@@ -319,14 +342,20 @@ pub fn parse_OppLit(exprStr:&str,Line:i32) -> Expr{
     }
     println!("{:?}",righttext);
     println!("{:?}",lefttext);
+    println!("ddsa{:?}",tokenStrings[idx]);
+
+    if tokenStrings.len() == 1 && tokenStrings[idx].starts_with("(") && tokenStrings[idx].ends_with(")"){
+        let removed =  tokenStrings[idx].strip_suffix(")").unwrap().strip_prefix("(").unwrap();
+        return parse_expr(removed,Line)
+    }
 
 
     if lefttext == "".to_string(){ 
         // uranary
-        if !(tokenStrings.len() > idx+1)  {
-            println!("sdaf:{:?}", )            
+        if tokenStrings.len() == idx+1  {          
             panic!("canot use a uranary operator on nothing")
         }
+
         let mut righttext2: String = tokenStrings[idx+1].clone();
         
         match tokenStrings[idx].as_str(){
@@ -545,7 +574,23 @@ pub fn IsVecLit(exprStr:&str,Line:i32) -> bool{
 
  
 pub fn IsFunctionCall(exprStr:&str,Line:i32) -> bool{
-    return exprStr.contains("(") && exprStr.trim().ends_with(')');
+    if exprStr.contains("(") && exprStr.trim().ends_with(')'){
+        let exprStr: &str = exprStr.trim();
+        if exprStr.is_empty() {
+            return false;
+        }
+
+        let mut chars = exprStr.trim().chars();
+
+        // Check first character
+        match chars.next() {
+            Some(c) if c.is_ascii_alphanumeric() || c == '_' => {}
+            _ => return false,
+        }
+        return true;
+    }else{
+        return false
+    }
 }
 
 pub fn IsVarbleName(exprStr: &str, _Line: i32) -> bool {

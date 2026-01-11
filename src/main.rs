@@ -31,7 +31,7 @@ pub enum Expr{
     // Function call
     Call {
         name: String,
-        args: Vec<Expr>,  // <- add generics here
+        args: Vec<Box<Expr>>,  // <- add generics here
     },
 }
 // Optional: enums for operators
@@ -300,9 +300,12 @@ fn parse_expr(exprStr:&str,Line:i32) ->  Expr{
         return Expr::Variable(exprStr.trim().to_string())
     }
     if parse::IsOpp(exprStr,Line){
-        return parse::parse_OppLit(exprStr,Line)
+        return parse::parse_OppLit(exprStr,Line) 
     }
-    panic!("invalid expresion")
+    if parse::IsFunctionCall(exprStr,Line){
+        return parse::parse_FuncLit(exprStr,Line)
+    }
+    panic!("invalid expresion {:?}", exprStr)
 
 }
 
