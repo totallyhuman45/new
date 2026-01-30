@@ -63,7 +63,6 @@ pub enum BinaryOperator {
 #[derive(Debug, Clone)]
 pub enum tokens {
     Expersion(Expr),
-    PerethisisSet(Vec<Box<tokens>>),
     KeyWord(KeyWord),
     Type(Type),
     Word(String),
@@ -75,7 +74,8 @@ pub enum KeyWord {
     For,
     While,
     Fn,
-    Colin, 
+    Colon, 
+    Equl,
     Const,
     Pointer, // * for types
     Alloc,
@@ -97,7 +97,7 @@ pub enum Type {
     Bool,
     Char,
     Void,
-    Array(Box<Type>,i32),
+    Array(i32),
 }
 
 
@@ -156,8 +156,9 @@ fn lexLine(Line: String,LineNum:i32) -> Vec<tokens>{
         if i < c{
             break;
         }
+
         
-        if !matches!(*t, ':'|' '){
+        if !matches!(*t, ':'|' '|'['|'*'|'('|')'){
             s.push(*t);
         }else{
             if *t == ':'{
@@ -165,7 +166,27 @@ fn lexLine(Line: String,LineNum:i32) -> Vec<tokens>{
                 s = "".to_string();
                 split.push(":".to_string()); 
                 c = i;
-           
+            } else if *t == '*'{
+                if s != ""{
+                    split.push(s);
+                    s = "".to_string();
+                }    
+                split.push("*".to_string()); 
+                c = i;
+            }else if *t == '('{
+                if s != ""{
+                    split.push(s);
+                    s = "".to_string();
+                }    
+                split.push("(".to_string()); 
+                c = i;
+            }else if *t == ')'{
+                if s != ""{
+                    split.push(s);
+                    s = "".to_string();
+                }    
+                split.push(")".to_string()); 
+                c = i;
             } else if  *t == ' '{
                 // if after space ther is a binary operator we dont stop but we haave to check for if after out = thers is anouther =
                 let mut condtmp = true;
@@ -250,6 +271,16 @@ fn lexLine(Line: String,LineNum:i32) -> Vec<tokens>{
                         c = i;
                     }    
                 }
+
+            }
+        }
+        if Line.len() != i + 1{
+            if Line.clone().chars().collect::<Vec<char>>()[(i as i32 + 1) as usize] == '['{
+                if s != ""{
+                    split.push(s);
+                }
+                s = "[".to_string();
+                c = i;
             }
         }
     }
@@ -257,23 +288,117 @@ fn lexLine(Line: String,LineNum:i32) -> Vec<tokens>{
         split.push(s.clone());
     }
 
+
     println!("s: {:?}", s);
     println!("split: {:?}", split);
     
+    for (i,x) in split.clone().iter().enumerate(){
+        if x =="("{
+            if i+2 < split.len(){
+                if split[i+2 as usize] == ")"{
+                    if parse::IsOpp(&split[(i + 1) as usize], LineNum) {
+                        split[i] = format!("({})", split[(i + 1) as usize]);
+                        split.remove(i+1);
+                        split.remove(i+2);
+                    }
+                }
+            }
+        }
+    }
+    let mut cur:String = "".to_string();
+    let mut j:usize = 0;
+    let mut perenthisisEncountered:i32 = 0;
+    for (i,x) in split.iter().enumerate(){
+        if x == "("{
+            cur = "".to_string();
+            perenthisisEncountered = 0;
+            j = i;
+            loop {
+                if j >= split.len(){
+                    break;
+                } 
+                if split[j] == "("{
+                    perenthisisEncountered +=1;
+                }
+                if split[j] == ")"{
+                    perenthisisEncountered -=1;
+                }
+                if perenthisisEncountered == 0{
+                    break;
+                }
+                cur = format!("{}{}",cur,split[j]);
+
+                j+=1;
+            }
+            if parse::IsOpp(cur as &str,Line){
+                split[i] = cur
+                // ima end here but we still have to delete old lines
+            }
+        }
+    }
+
+    
+    
 
     for (i,x) in split.iter().enumerate(){
-        if x == "="{
-
-        } else if parse::IsOpp(x,LineNum){
+        let mut prev = "";
+        if i != 0{
+            prev = &split[i-1]
+        }
+        if let Some(val) = key_get(x,LineNum){
+            result.push(tokens::KeyWord(val));
+        }else if let Some(val) = type_get(x,prev,LineNum){
+            result.push(tokens::Type(val));
+        } else if parse::IsOpp(x,LineNum) || parse::IsArrayLit(x,LineNum){
             result.push(tokens::Expersion(parse_expr(x,LineNum)));
+        } else if parse::IsVarbleName(x,LineNum){
+            result.push(tokens::Word(x.to_string()));
         }
 
     }
     println!("tokens: {:#?}", result);
-    return todo!()
+    return result;
+}
+fn key_get(exprStr:&str,Line:i32) -> Option<KeyWord>{
+        let keys:Vec<&str> = vec!["If","For", "While", "Fn", ":" ,"=", "Const", "*", "Alloc" , "Free"];
+        let keystok:Vec<KeyWord> = vec![KeyWord::If,KeyWord::For,KeyWord::While,KeyWord::Fn,KeyWord::Colon,KeyWord:: Equl,KeyWord::Const,KeyWord::Pointer,KeyWord:: Alloc,KeyWord::Free];
+        let found_value = keys.iter().position(|&s| s == exprStr.trim());
+        match found_value {
+            Some(value) => {
+                return Some(keystok[value as usize].clone())
+            },
+            None => return None
+        }
+
 }
 
+fn type_get(exprStr:&str,prev:&str,Line:i32) -> Option<Type>{
+    let types:Vec<&str> = vec!["i8","i16","i32","i64","u8","u16","u32","u64","f32","f64","Bool","Char","Void"];
+    let typesCodes:Vec<Type> = vec![Type::I8,Type::I16,Type::I32,Type::I64,Type::U8,Type::U16,Type::U32,Type::U64,Type::F32,Type::F64,Type::Bool,Type::Char,Type::Void];
 
+
+
+    let found_value = types.iter().position(|&s| s == exprStr);
+    
+    match found_value {
+        Some(value) => {
+            return Some(typesCodes[value as usize].clone())
+        },
+        None => {}
+    }
+    println!("prev: {:#?}", prev);
+
+    if parse::IsVarbleName(prev,Line) && exprStr.contains("["){
+
+        let mut removed = exprStr.strip_prefix("[").unwrap_or_else(|| {panic!("Failed to parse string: {:?} on line {:?}", exprStr, Line)});
+        removed = removed.strip_suffix("]").unwrap_or_else(|| {panic!("Failed to parse string: {:?} on line {:?}", exprStr, Line)});
+        let length: u32 = removed.trim().parse().expect(&format!("Failed to parse string: {:?} on line {:?}",exprStr,Line));
+
+        return Some(Type::Array(length as i32))
+    }
+    None
+}
+    
 
 
 fn parse_expr(exprStr:&str,Line:i32) ->  Expr{

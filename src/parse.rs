@@ -277,11 +277,12 @@ pub fn parse_OppLit(exprStr:&str,Line:i32) -> Expr{
             }
         }
         if *x == "<".to_string()|| *x == ">".to_string()|| *x == "=".to_string()|| *x == "!".to_string(){
-            if i < tokenStrings.len(){
+            if i < tokenStrings.len()-1{
                 if tokenStrings[i+ 1 as usize].clone() == "=".to_string(){
                     tokenStrings[i] = tokenStrings[i].clone() + "=";
                     toRemove.push(i+1 as usize);
                 }
+                
             }
         }
         
@@ -606,7 +607,9 @@ pub fn IsVarbleName(exprStr: &str, _Line: i32) -> bool {
         Some(c) if c.is_ascii_alphanumeric() || c == '_' => {}
         _ => return false,
     }
-
+    if exprStr.contains(':'){
+        return false
+    }
     // Check the rest
     chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
