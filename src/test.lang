@@ -1,14 +1,21 @@
-f64: *y[2] = [1,2];
-
-f64: y = 1.2 <=  (2 + 7 + 9/8) + func(1,1);
-
-bool: flag;
-float64: y = 1.2 + 2;
-int32: x = 3;
+i32:x = 1;
+f64[2]: y = [1.0,2.0];
 
 
-fn int32 Name(x:i32){
-	return 1;
+bool: y = 1 <=  (2 + 7 + 9/8) + 5;
+
+f64: y = 1.2 + 2.2;
+i32: x = 3;
+
+
+fn i32 Name(x:i32,u:i32){
+	i32: y = x * 5;
+	return y;
 }
 
+
+
+fn void Start(){
+	Name(x);
+}
 
