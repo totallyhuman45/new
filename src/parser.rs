@@ -81,7 +81,7 @@ pub enum Stmt {
 #[derive(Debug, Clone,PartialEq)]
 pub struct AssignmentStmt {
     pub name: String,
-    pub ty: Type,
+    pub ty: Option<Type>,
     pub value: Option<Expr>,
     pub pointer: bool,
 
@@ -248,10 +248,10 @@ pub struct FunctionDecl {
 
     pub fn parse_Stmt(&mut self) -> Stmt{
         let x:Stmt = match self.nextP(){
-            TokenParseItem{tokens:TokenExpr::Key(Token::Type(x)),locations:y}  => self.parse_Stmt_Assignment(x),
+            TokenParseItem{tokens:TokenExpr::Key(Token::Type(x)),locations:y}  => self.parse_Stmt_Assignment(Some(x)),
             TokenParseItem{tokens:TokenExpr::Key(Token::Let),locations:y}  => {
                 match self.next(){
-                    TokenExpr::Key(Token::Type(x)) => self.parse_Stmt_Assignment(x),
+                    TokenExpr::Key(Token::Type(x)) => self.parse_Stmt_Assignment(Some(x)),
                     x => errorHandle(format!("must provide a type after a let statement {:?}",x),self)
                 }
             },
@@ -260,12 +260,9 @@ pub struct FunctionDecl {
             TokenParseItem{tokens:TokenExpr::Key(Token::While),locations:y}   => self.parse_Stmt_While(),
             TokenParseItem{tokens:TokenExpr::Key(Token::Break),locations:y}  => self.parse_Stmt_Break(),
             TokenParseItem{tokens:TokenExpr::Key(Token::Continue) ,locations:y} => self.parse_Stmt_Continue(),
-            x => self.parse_Stmt_Expr(x),
+            x => self.parse_Stmt_Assignment_Short(x),
         };
-        match self.peek() {
-            TokenExpr::Key(Token::Type(_)) | TokenExpr::Key(Token::Let) | TokenExpr::Key(Token::Return) | TokenExpr::Key(Token::If)| TokenExpr::Key(Token::While) |TokenExpr ::Key(Token::RBrace) => x,
-            _ => errorHandle(format!("Not a vlaid statement {:?}",x),self)
-        }
+        x
     }
 
 /*
@@ -280,6 +277,16 @@ pub enum Stmt {
     Continue, done
 }
 */
+
+    pub fn parse_Stmt_Assignment_Short(&mut self, first: TokenParseItem) -> Stmt{
+        match self.peek(){
+            TokenExpr::Key(Token::Equl) => {
+                self.push(first);
+                self.parse_Stmt_Assignment(None)
+            }
+            _=> self.parse_Stmt_Expr(first)
+        }
+    }
     pub fn parse_Stmt_Expr(&mut self, first: TokenParseItem) -> Stmt{
         self.push(first);
         let expr = Expr::parse_expression(self,0.0);
@@ -390,24 +397,27 @@ pub struct IfStmt {
     }
 
 
-    pub fn parse_Stmt_Assignment(&mut self, typ: Type) -> Stmt{
+    pub fn parse_Stmt_Assignment(&mut self, typ: Option<Type>) -> Stmt{
+        
         let mut ty = typ;
-        ty = match self.next(){
-            TokenExpr::Key(Token::Colon) => ty,
-            TokenExpr::Op(Token::LBracket) => {
-                let x = match self.next() {
-                    TokenExpr::Operand(Token::Int(len)) => Type::Array(Box::new(ty),len),
-                    t => errorHandle(format!("cannot deffine an array with a non integer length. {:?}",t),self)
-                };
-                self.next();
-                let next = self.next();
-                if next != TokenExpr::Key(Token::Colon){
-                    errorHandle(format!("unexpected token: there must be a colon between the assinments type and name: {:?}",next),self)
-                }
-                x
-            } 
-            _ => errorHandle(format!("varbles must have valid types"),self)
-        };
+        if !ty.is_none(){
+            ty = match self.next(){
+                TokenExpr::Key(Token::Colon) => Some(ty.unwrap()),
+                TokenExpr::Op(Token::LBracket) => {
+                    let x = match self.next() {
+                        TokenExpr::Operand(Token::Int(len)) => Some(Type::Array(Box::new(ty.unwrap()),len)),
+                        t => errorHandle(format!("cannot deffine an array with a non integer length. {:?}",t),self)
+                    };
+                    self.next();
+                    let next = self.next();
+                    if next != TokenExpr::Key(Token::Colon){
+                        errorHandle(format!("unexpected token: there must be a colon between the assinments type and name: {:?}",next),self)
+                    }
+                    x
+                } 
+                _ => errorHandle(format!("varbles must have valid types"),self)
+            };
+        }
 
         let mut pointer = false;
         let name = match self.next(){
@@ -421,6 +431,7 @@ pub struct IfStmt {
             },
             x => errorHandle(format!("varbles must have valid alphanumeric names {:?}" , x),self)
         };
+
         let value:Option<Expr>;
         let next:TokenExpr = self.next();
         if next == TokenExpr::Key(Token::Equl){

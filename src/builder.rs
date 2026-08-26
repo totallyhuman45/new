@@ -28,6 +28,8 @@ pub enum Components<'ctx> {
 	Global(GlobalValue<'ctx>)
 }
 
+
+
 impl Program {
 	pub fn build(& self){
 		// init
@@ -117,6 +119,9 @@ impl FunctionDecl{
 		    code_gen.symbol_table.borrow_mut().insert(param_name.clone(), alloca);
 		}
 
+		println!("{:?}",code_gen.symbol_table);
+		
+
 		let current_block = code_gen.builder.get_insert_block().unwrap();
 		if current_block.get_terminator().is_none() {
 		    let return_type = self.return_type.to_llvm_type(&code_gen);
@@ -140,6 +145,47 @@ impl FunctionDecl{
     }
 }
 
+impl AssignmentStmt {
+	fn buildAssignment<'ctx>(&self, code_gen: &Codegen<'ctx>) -> PointerValue<'ctx> {
+	    let context = &code_gen.context;
+	    let module = &code_gen.module;
+	    let builder = &code_gen.builder;
+
+	    let llvm_any_type = self.ty.to_llvm_type(code_gen);
+
+	    let llvm_basic_type: inkwell::types::BasicTypeEnum = llvm_any_type
+	        .try_into()
+	        .expect("Compiler Error: Local variables cannot be initialized with Void types.");
+
+	    // 1. Allocate the local variable on the stack instead of adding it to the module
+	    let local_var = builder.build_alloca(llvm_basic_type, &self.name).unwrap();
+
+	    let (evaluated_val, ty) = self.value.clone()
+	        .expect("Compiler Error: Local variables must be initialized with a default value.")
+	        .llvm_expr(code_gen)
+	        .expect("REASON");
+
+	    let default_initializer: inkwell::values::BasicValueEnum<'ctx> = if self.pointer {
+	        if evaluated_val.is_pointer_value() {
+	            evaluated_val
+	        } else if evaluated_val.is_int_value() {
+	            let int_val = evaluated_val.into_int_value();
+	            let ptr_type = code_gen.context.ptr_type(inkwell::AddressSpace::from(0));
+	            
+	            int_val.const_to_pointer(ptr_type).into()
+	        } else {
+	            panic!("Compiler Error: Cannot initialize a pointer with a floating-point value.");
+	        }
+	    } else {
+	        evaluated_val
+	    };
+
+	    builder.build_store(local_var, default_initializer).unwrap();
+
+	    local_var
+	}
+
+}
 
 
 impl GlobalDecl{

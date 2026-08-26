@@ -10,6 +10,7 @@ i32: x = 3;
 
 fn i32 Name(x:i32,u:i32){
 	i32: y = x * 5;
+	y = 5 ;
 	return y;
 }
 
